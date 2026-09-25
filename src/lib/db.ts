@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS orders (
   total INTEGER NOT NULL,
   promo_code TEXT,
   certificate_code TEXT,
+  payment_method TEXT NOT NULL DEFAULT 'cash',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   paid_at TEXT
 );
@@ -123,6 +124,13 @@ function seed(db: DatabaseSync) {
   }
 }
 
+/** Добавляет колонки, появившиеся после создания базы. */
+function migrate(db: DatabaseSync) {
+  const cols = (db.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("payment_method"))
+    db.exec("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash'");
+}
+
 const globalForDb = globalThis as unknown as { __db?: DatabaseSync };
 
 export function db(): DatabaseSync {
@@ -131,6 +139,7 @@ export function db(): DatabaseSync {
     const d = new DatabaseSync(path.join(DATA_DIR, "app.db"));
     d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
     d.exec(SCHEMA);
+    migrate(d);
     seed(d);
     globalForDb.__db = d;
   }

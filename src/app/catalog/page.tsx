@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProductArt } from "@/components/ProductArt";
-import { PRODUCTS, minPrice, rub } from "@/lib/catalog";
+import { PRODUCTS, minPrice, money } from "@/lib/catalog";
 
 export const metadata = { title: "Каталог" };
 
@@ -20,7 +20,7 @@ export default function Catalog() {
             <div>
               <h3>{p.title}</h3>
               <p className="muted small">{p.description}</p>
-              <strong>от {rub(minPrice(p))}</strong>
+              <strong>от {money(minPrice(p))}</strong>
             </div>
           </Link>
         ))}
@@ -31,7 +31,7 @@ export default function Catalog() {
           <div>
             <h3>Подарочный сертификат</h3>
             <p className="muted small">Когда хочется подарить книгу, но фото у получателя.</p>
-            <strong>от {rub(2000)}</strong>
+            <strong>от {money(2000)}</strong>
           </div>
         </Link>
       </div>

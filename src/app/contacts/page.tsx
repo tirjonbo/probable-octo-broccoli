@@ -1,3 +1,5 @@
+import { SITE } from "@/lib/site";
+
 export const metadata = { title: "Контакты" };
 
 export default function ContactsPage() {
@@ -8,16 +10,18 @@ export default function ContactsPage() {
         <div className="card">
           <h3>Поддержка</h3>
           <p>
-            <a href="mailto:hello@example.com">hello@example.com</a>
+            <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>{SITE.phone}</a>
             <br />
-            <a href="tel:+70000000000">+7 000 000-00-00</a>
+            <a href={`https://t.me/${SITE.telegram}`}>Telegram: @{SITE.telegram}</a>
+            <br />
+            <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
           </p>
-          <p className="muted small">Ежедневно с 9:00 до 21:00 по Москве</p>
+          <p className="muted small">{SITE.hours}</p>
         </div>
         <div className="card">
           <h3>Производство</h3>
-          <p>Адрес производства и реквизиты компании.</p>
-          <p className="muted small">Замените на свои данные в src/app/contacts/page.tsx</p>
+          <p>{SITE.address}</p>
+          <p className="muted small">{SITE.company}</p>
         </div>
       </div>
     </div>

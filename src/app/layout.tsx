@@ -7,7 +7,7 @@ import { cartCount } from "@/lib/shop";
 
 export const metadata: Metadata = {
   title: { default: "Страницы — фотокниги, журналы и календари", template: "%s · Страницы" },
-  description: "Соберите фотокнигу онлайн за вечер: загрузите фото, выберите оформление и получите печатную книгу с доставкой.",
+  description: "Соберите фотокнигу онлайн за вечер: загрузите фото, выберите оформление и получите печатную книгу с доставкой по Ташкенту.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

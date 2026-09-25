@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -60,6 +61,11 @@ export function AuthForm({ next }: { next: string }) {
           {...f("password")}
         />
       </label>
+      {mode === "login" && (
+        <p className="small muted" style={{ margin: 0 }}>
+          Забыли пароль? Напишите в <Link href="/contacts">поддержку</Link> — поможем восстановить доступ.
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       <button className="btn btn-block" disabled={busy}>
         {mode === "login" ? "Войти" : "Зарегистрироваться"}

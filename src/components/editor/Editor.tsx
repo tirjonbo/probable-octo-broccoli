@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigFields } from "@/components/Configurator";
-import { type ProjectConfig, getProduct, priceFor, rub } from "@/lib/catalog";
+import { type ProjectConfig, getProduct, priceFor, money } from "@/lib/catalog";
 import {
   LAYOUTS,
   type LayoutId,
@@ -226,7 +226,7 @@ export function Editor({ initial, signedIn }: { initial: Project; signedIn: bool
         </span>
         <div style={{ flex: 1 }} />
         <span className="muted small">
-          {product.title} · {rub(price)}
+          {product.title} · {money(price)}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => setPreview(true)}>
           Предпросмотр

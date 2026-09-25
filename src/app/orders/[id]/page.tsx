@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PayButton } from "@/components/PayButton";
+import { OrderStatusPill } from "@/components/OrderStatusPill";
 import { getUser } from "@/lib/auth";
-import { DELIVERY_METHODS, ORDER_STATUSES, rub } from "@/lib/catalog";
+import { PAYMENT_METHODS, formatDate, money } from "@/lib/catalog";
 import { getOrder } from "@/lib/shop";
 
 export const metadata = { title: "Заказ" };
@@ -11,24 +11,23 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const user = await getUser();
   const order = getOrder((await params).id);
   if (!user || !order || (order.user_id !== user.id && user.role !== "admin")) notFound();
-  const method = DELIVERY_METHODS.find((m) => m.id === order.delivery.method);
+  const payment = PAYMENT_METHODS.find((m) => m.id === order.payment_method);
   const hasGoods = order.items.some((i) => !i.certificate_amount);
   return (
     <div className="container section" style={{ maxWidth: 820 }}>
       <div className="spread">
         <h1 style={{ margin: 0 }}>Заказ № {order.number}</h1>
-        <span className={`pill ${order.status === "awaiting_payment" ? "pill-warn" : "pill-ok"}`}>{ORDER_STATUSES[order.status]}</span>
+        <OrderStatusPill status={order.status} />
       </div>
-      <p className="muted">от {new Date(order.created_at + "Z").toLocaleString("ru-RU")}</p>
+      <p className="muted">от {formatDate(order.created_at)}</p>
 
-      {order.status === "awaiting_payment" && (
+      {order.status === "new" && (
         <div className="card stack" style={{ marginTop: 16 }}>
-          <strong>К оплате: {rub(order.total)}</strong>
+          <strong>Спасибо, заказ принят!</strong>
           <p className="muted small" style={{ margin: 0 }}>
-            Платёжный шлюз не подключён — это тестовая оплата. Для продакшена подключите ЮKassa, CloudPayments или другой
-            провайдер (см. README).
+            Менеджер позвонит на {order.contact.phone}, чтобы подтвердить заказ. Оплата — {payment?.label.toLowerCase()}{" "}
+            при получении: {money(order.total)}.
           </p>
-          <PayButton orderId={order.id} />
         </div>
       )}
 
@@ -38,7 +37,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           {order.issuedCertificates.map((c) => (
             <div key={c.code} className="spread">
               <code style={{ fontSize: "1.2rem" }}>{c.code}</code>
-              <span>{rub(c.amount)}</span>
+              <span>{money(c.amount)}</span>
             </div>
           ))}
         </div>
@@ -62,7 +61,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     <div className="muted small">{i.details}</div>
                   </td>
                   <td>{i.qty}</td>
-                  <td style={{ textAlign: "right" }}>{rub(i.price * i.qty)}</td>
+                  <td style={{ textAlign: "right" }}>{money(i.price * i.qty)}</td>
                 </tr>
               ))}
             </tbody>
@@ -72,24 +71,28 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           {order.discount > 0 && (
             <div className="summary-row">
               <span>Скидка ({order.promo_code})</span>
-              <span>−{rub(order.discount)}</span>
+              <span>−{money(order.discount)}</span>
             </div>
           )}
           {hasGoods && (
             <div className="summary-row">
               <span>Доставка</span>
-              <span>{order.delivery_price ? rub(order.delivery_price) : "бесплатно"}</span>
+              <span>{money(order.delivery_price)}</span>
             </div>
           )}
           {order.certificate_used > 0 && (
             <div className="summary-row">
               <span>Сертификат</span>
-              <span>−{rub(order.certificate_used)}</span>
+              <span>−{money(order.certificate_used)}</span>
             </div>
           )}
           <div className="summary-row summary-total">
             <span>Итого</span>
-            <span>{rub(order.total)}</span>
+            <span>{money(order.total)}</span>
+          </div>
+          <div className="summary-row small muted">
+            <span>{payment?.label}</span>
+            <span>{order.paid_at ? "оплачено" : "не оплачено"}</span>
           </div>
         </div>
       </div>
@@ -104,10 +107,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </div>
         {hasGoods && (
           <div className="card small">
-            <strong>{method?.label}</strong>
-            <div>
-              {order.delivery.city}, {order.delivery.address}
-            </div>
+            <strong>Курьер, {order.delivery.city}</strong>
+            <div>{order.delivery.address}</div>
+            {order.delivery.landmark && <div className="muted">Ориентир: {order.delivery.landmark}</div>}
             {order.delivery.comment && <div className="muted">{order.delivery.comment}</div>}
           </div>
         )}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProductArt } from "@/components/ProductArt";
-import { PRODUCTS, minPrice, rub } from "@/lib/catalog";
+import { PRODUCTS, minPrice, money } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { FAQ } from "@/lib/content";
 
@@ -50,7 +50,7 @@ export default function Home() {
               <div>
                 <h3 style={{ marginBottom: 4 }}>{p.title}</h3>
                 <div className="muted small">{p.short}</div>
-                <div style={{ marginTop: 6 }}>от {rub(minPrice(p))}</div>
+                <div style={{ marginTop: 6 }}>от {money(minPrice(p))}</div>
               </div>
             </Link>
           ))}
@@ -75,7 +75,7 @@ export default function Home() {
             </div>
             <div className="step">
               <h3>Получите книгу</h3>
-              <p className="muted">Печатаем, проверяем и отправляем курьером, в пункт выдачи или почтой.</p>
+              <p className="muted">Печатаем, проверяем и привозим курьером по Ташкенту. Оплата наличными.</p>
             </div>
           </div>
         </div>

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { StatusSelect } from "@/components/StatusSelect";
+import { MarkPaidButton, StatusSelect } from "@/components/StatusSelect";
 import { getUser } from "@/lib/auth";
-import { ORDER_STATUSES, type OrderStatus, rub } from "@/lib/catalog";
+import { ORDER_STATUSES, type OrderStatus, formatDate, money } from "@/lib/catalog";
 import { listOrders } from "@/lib/shop";
 
 export const metadata = { title: "Админка" };
@@ -14,25 +14,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const all = listOrders();
   const orders = status ? all.filter((o) => o.status === status) : all;
   const revenue = all.filter((o) => o.paid_at && o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+  const unpaid = all.filter((o) => !o.paid_at && o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
   return (
     <div className="container section">
       <h1>Заказы</h1>
       <div className="grid grid-4" style={{ marginBottom: 24 }}>
         <div className="card">
-          <div className="muted small">Всего заказов</div>
-          <div className="price-big">{all.length}</div>
-        </div>
-        <div className="card">
-          <div className="muted small">Ждут оплаты</div>
-          <div className="price-big">{all.filter((o) => o.status === "awaiting_payment").length}</div>
+          <div className="muted small">Новые</div>
+          <div className="price-big">{all.filter((o) => o.status === "new").length}</div>
         </div>
         <div className="card">
           <div className="muted small">В работе</div>
-          <div className="price-big">{all.filter((o) => o.status === "paid" || o.status === "printing").length}</div>
+          <div className="price-big">{all.filter((o) => ["confirmed", "printing", "shipped"].includes(o.status)).length}</div>
         </div>
         <div className="card">
-          <div className="muted small">Выручка</div>
-          <div className="price-big">{rub(revenue)}</div>
+          <div className="muted small">Получено</div>
+          <div className="price-big" style={{ fontSize: "1.6rem" }}>{money(revenue)}</div>
+        </div>
+        <div className="card">
+          <div className="muted small">Ожидается наличными</div>
+          <div className="price-big" style={{ fontSize: "1.6rem" }}>{money(unpaid)}</div>
         </div>
       </div>
       <div className="tabs" style={{ flexWrap: "wrap" }}>
@@ -51,9 +52,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <tr>
               <th>№</th>
               <th>Дата</th>
-              <th>Клиент</th>
+              <th>Клиент и адрес</th>
               <th>Состав</th>
               <th>Сумма</th>
+              <th>Оплата</th>
               <th>Статус</th>
             </tr>
           </thead>
@@ -63,13 +65,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 <td>
                   <Link href={`/orders/${o.id}`}>{o.number}</Link>
                 </td>
-                <td>{new Date(o.created_at + "Z").toLocaleString("ru-RU")}</td>
+                <td className="small">{formatDate(o.created_at)}</td>
                 <td>
                   {o.contact.name}
+                  <div className="small">
+                    <a href={`tel:${o.contact.phone.replace(/\s/g, "")}`}>{o.contact.phone}</a>
+                  </div>
                   <div className="muted small">
-                    {o.contact.phone}
-                    <br />
-                    {o.contact.email}
+                    {o.delivery.address}
+                    {o.delivery.landmark && <> · {o.delivery.landmark}</>}
+                    {o.delivery.comment && <div>«{o.delivery.comment}»</div>}
                   </div>
                 </td>
                 <td className="small">
@@ -78,8 +83,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       {i.title} × {i.qty}
                     </div>
                   ))}
+                  {o.items.some((i) => i.project_snapshot) && (
+                    <Link href={`/admin/orders/${o.id}`} className="small">
+                      Макет для печати →
+                    </Link>
+                  )}
                 </td>
-                <td>{rub(o.total)}</td>
+                <td>{money(o.total)}</td>
+                <td>{o.paid_at ? <span className="pill pill-ok">Оплачен</span> : <MarkPaidButton id={o.id} />}</td>
                 <td>
                   <StatusSelect id={o.id} status={o.status as OrderStatus} />
                 </td>
@@ -87,7 +98,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted center">
+                <td colSpan={7} className="muted center">
                   Заказов нет
                 </td>
               </tr>

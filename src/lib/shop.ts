@@ -3,15 +3,18 @@ import crypto from "node:crypto";
 import { db, newId, tx } from "./db";
 import {
   CERTIFICATE_NOMINALS,
-  DELIVERY_METHODS,
-  type DeliveryId,
+  DELIVERY,
+  ORDER_STATUSES,
+  PAYMENT_METHODS,
   type OrderStatus,
+  type PaymentMethod,
   type ProjectConfig,
-  deliveryPrice,
   describeConfig,
   getProduct,
+  normalizePhone,
   priceFor,
 } from "./catalog";
+import { notify } from "./notify";
 import type { ProjectData } from "./project";
 
 export type ProjectRow = {
@@ -85,7 +88,7 @@ export function getCart(userId: string): CartLine[] {
         id: r.id,
         qty: r.qty,
         title: "Подарочный сертификат",
-        details: "Электронный, придёт на e-mail после оплаты",
+        details: "Электронный код — появится на странице заказа после оплаты",
         unitPrice: r.certificate_amount,
         projectId: null,
         productSlug: null,
@@ -176,16 +179,13 @@ export type Totals = {
 };
 
 /** Считает итог. Промокод не действует на сертификаты; сертификатом нельзя оплатить сертификат. */
-export function computeTotals(
-  lines: CartLine[],
-  opts: { delivery: DeliveryId; promo?: string; certificate?: string },
-): Totals {
+export function computeTotals(lines: CartLine[], opts: { promo?: string; certificate?: string }): Totals {
   const goods = lines.filter((l) => !l.certificateAmount).reduce((s, l) => s + l.unitPrice * l.qty, 0);
   const certs = lines.filter((l) => l.certificateAmount).reduce((s, l) => s + l.unitPrice * l.qty, 0);
   const promo = opts.promo ? findPromo(opts.promo) : null;
   if (opts.promo && !promo) throw new ShopError("Промокод не найден");
   const discount = promo ? Math.round((goods * promo.percent) / 100) : 0;
-  const delivery = goods > 0 ? deliveryPrice(opts.delivery, goods - discount) : 0;
+  const delivery = goods > 0 ? DELIVERY.price : 0;
   const cert = opts.certificate ? findCertificate(opts.certificate) : null;
   if (opts.certificate && !cert) throw new ShopError("Сертификат не найден или уже израсходован");
   const payableByCert = goods - discount + delivery;
@@ -204,7 +204,7 @@ export function computeTotals(
 // ---------- Заказы ----------
 
 export type Contact = { name: string; phone: string; email: string };
-export type Delivery = { method: DeliveryId; city: string; address: string; comment: string };
+export type Delivery = { city: string; address: string; landmark: string; comment: string };
 
 export type OrderRow = {
   id: string;
@@ -220,6 +220,7 @@ export type OrderRow = {
   total: number;
   promo_code: string | null;
   certificate_code: string | null;
+  payment_method: PaymentMethod;
   created_at: string;
   paid_at: string | null;
   items: {
@@ -234,44 +235,53 @@ export type OrderRow = {
   issuedCertificates: { code: string; amount: number }[];
 };
 
-function validateCheckout(contact: Contact, delivery: Delivery, needsShipping: boolean) {
+function validateCheckout(contact: Contact, delivery: Delivery, needsShipping: boolean, payment: string): Contact {
   if (contact.name.trim().length < 2) throw new ShopError("Укажите имя");
-  if (!/^[+\d][\d\s()-]{9,}$/.test(contact.phone.trim())) throw new ShopError("Проверьте телефон");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())) throw new ShopError("Проверьте e-mail");
-  if (!DELIVERY_METHODS.some((m) => m.id === delivery.method)) throw new ShopError("Выберите доставку");
-  if (needsShipping && (delivery.city.trim().length < 2 || delivery.address.trim().length < 3))
-    throw new ShopError("Укажите город и адрес");
+  const phone = normalizePhone(contact.phone);
+  if (!phone) throw new ShopError("Укажите номер в формате +998 XX XXX XX XX");
+  const email = contact.email.trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ShopError("Проверьте e-mail");
+  if (!PAYMENT_METHODS.some((m) => m.id === payment && m.available)) throw new ShopError("Выберите способ оплаты");
+  if (needsShipping && delivery.address.trim().length < 3) throw new ShopError("Укажите адрес доставки");
+  return { name: contact.name.trim(), phone, email };
 }
 
 export function createOrder(
   userId: string,
-  input: { contact: Contact; delivery: Delivery; promo?: string; certificate?: string },
+  input: { contact: Contact; delivery: Delivery; payment: string; promo?: string; certificate?: string },
 ): OrderRow {
-  return tx(() => {
+  const order = tx(() => {
     const lines = getCart(userId);
     if (lines.length === 0) throw new ShopError("Корзина пуста");
     const needsShipping = lines.some((l) => !l.certificateAmount);
-    validateCheckout(input.contact, input.delivery, needsShipping);
+    const contact = validateCheckout(input.contact, input.delivery, needsShipping, input.payment);
+    const delivery: Delivery = needsShipping
+      ? {
+          city: DELIVERY.city,
+          address: input.delivery.address.trim(),
+          landmark: input.delivery.landmark.trim(),
+          comment: input.delivery.comment.trim(),
+        }
+      : { city: "", address: "", landmark: "", comment: input.delivery.comment.trim() };
     const totals = computeTotals(lines, {
-      delivery: input.delivery.method,
       promo: input.promo || undefined,
       certificate: input.certificate || undefined,
     });
     const d = db();
     const { n } = d.prepare("SELECT COALESCE(MAX(number), 10000) + 1 AS n FROM orders").get() as { n: number };
     const id = newId();
-    const status: OrderStatus = totals.total === 0 ? "paid" : "awaiting_payment";
+    const status: OrderStatus = "new";
     d.prepare(
       `INSERT INTO orders (id, number, user_id, status, contact, delivery, subtotal, discount, delivery_price,
-         certificate_used, total, promo_code, certificate_code, paid_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         certificate_used, total, promo_code, certificate_code, payment_method, paid_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       n,
       userId,
       status,
-      JSON.stringify(input.contact),
-      JSON.stringify(input.delivery),
+      JSON.stringify(contact),
+      JSON.stringify(delivery),
       totals.subtotal,
       totals.discount,
       totals.delivery,
@@ -279,7 +289,9 @@ export function createOrder(
       totals.total,
       totals.promo,
       totals.certificateCode,
-      status === "paid" ? new Date().toISOString() : null,
+      input.payment,
+      // Полностью оплачен сертификатом — оплата не требуется.
+      totals.total === 0 ? new Date().toISOString() : null,
     );
     const insItem = d.prepare(
       `INSERT INTO order_items (id, order_id, title, details, price, qty, project_snapshot, certificate_amount)
@@ -297,14 +309,12 @@ export function createOrder(
       );
     }
     d.prepare("DELETE FROM cart_items WHERE user_id = ?").run(userId);
-    d.prepare("UPDATE users SET name = COALESCE(name, ?), phone = ? WHERE id = ?").run(
-      input.contact.name.trim(),
-      input.contact.phone.trim(),
-      userId,
-    );
-    if (status === "paid") issueCertificates(id);
+    d.prepare("UPDATE users SET name = COALESCE(name, ?), phone = ? WHERE id = ?").run(contact.name, contact.phone, userId);
+    if (totals.total === 0) issueCertificates(id);
     return getOrder(id)!;
   });
+  notify("order.created", { number: order.number, total: order.total, phone: order.contact.phone });
+  return order;
 }
 
 function issueCertificates(orderId: string) {
@@ -322,16 +332,19 @@ function issueCertificates(orderId: string) {
 }
 
 /**
- * Тестовая оплата. В продакшене здесь будет обработчик вебхука платёжного провайдера
- * (ЮKassa, CloudPayments и т.п.), который проверяет подпись и только потом отмечает заказ оплаченным.
+ * Отмечает, что деньги получены (наличные у курьера — отмечает менеджер в админке).
+ * После подключения Payme/Click сюда же придёт вебхук провайдера после проверки подписи.
+ * Выпускает оплаченные сертификаты. Повторный вызов ничего не делает.
  */
 export function markPaid(orderId: string) {
-  tx(() => {
+  const changed = tx(() => {
     const r = db()
-      .prepare("UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ? AND status = 'awaiting_payment'")
+      .prepare("UPDATE orders SET paid_at = ? WHERE id = ? AND paid_at IS NULL AND status != 'cancelled'")
       .run(new Date().toISOString(), orderId);
     if (r.changes === 1) issueCertificates(orderId);
+    return r.changes === 1;
   });
+  if (changed) notify("order.paid", { orderId });
 }
 
 type RawOrder = Omit<OrderRow, "contact" | "delivery" | "items" | "issuedCertificates"> & {
@@ -367,17 +380,22 @@ export function listOrders(userId?: string): OrderRow[] {
 }
 
 export function setOrderStatus(id: string, status: OrderStatus) {
-  tx(() => {
+  const changed = tx(() => {
     const d = db();
     const prev = d.prepare("SELECT status, certificate_code, certificate_used FROM orders WHERE id = ?").get(id) as
       | { status: OrderStatus; certificate_code: string | null; certificate_used: number }
       | undefined;
-    if (!prev || prev.status === status) return;
+    if (!prev || prev.status === status) return false;
     d.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
     // Сертификат списывается при оформлении — при отмене возвращаем остаток, при восстановлении снова списываем.
     if (prev.certificate_code && prev.certificate_used > 0) {
       const delta = status === "cancelled" ? prev.certificate_used : prev.status === "cancelled" ? -prev.certificate_used : 0;
       if (delta) d.prepare("UPDATE certificates SET balance = balance + ? WHERE code = ?").run(delta, prev.certificate_code);
     }
+    return true;
   });
+  if (!changed) return;
+  // Доставлен наличными — значит, курьер получил оплату.
+  if (status === "delivered") markPaid(id);
+  notify("order.status", { orderId: id, status: ORDER_STATUSES[status] });
 }

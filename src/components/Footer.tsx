@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PRODUCTS } from "@/lib/catalog";
+import { SITE } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -9,7 +10,7 @@ export function Footer() {
           <div className="logo" style={{ marginBottom: 8 }}>
             Стр<b style={{ color: "var(--accent)", fontWeight: 400 }}>а</b>ницы
           </div>
-          <p className="muted small">Печатаем ваши истории на хорошей бумаге.</p>
+          <p className="muted small">Фотокниги с доставкой по Ташкенту.</p>
         </div>
         <div>
           <strong>Продукты</strong>
@@ -25,15 +26,18 @@ export function Footer() {
           <Link href="/delivery">Доставка и оплата</Link>
           <Link href="/faq">Частые вопросы</Link>
           <Link href="/account">Личный кабинет</Link>
+          <Link href="/offer">Публичная оферта</Link>
+          <Link href="/privacy">Конфиденциальность</Link>
         </div>
         <div>
           <strong>Связь</strong>
           <Link href="/contacts">Контакты</Link>
-          <a href="mailto:hello@example.com">hello@example.com</a>
+          <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>{SITE.phone}</a>
+          <a href={`https://t.me/${SITE.telegram}`}>Telegram</a>
         </div>
       </div>
       <div className="container muted small" style={{ marginTop: 32 }}>
-        © {new Date().getFullYear()} Страницы. Демонстрационный проект.
+        © {new Date().getFullYear()} {SITE.name}. {SITE.company}
       </div>
     </footer>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getUser } from "@/lib/auth";
-import { ORDER_STATUSES, rub } from "@/lib/catalog";
+import { OrderStatusPill } from "@/components/OrderStatusPill";
+import { formatDate, money } from "@/lib/catalog";
 import { listOrders } from "@/lib/shop";
 
 export const metadata = { title: "Мои заказы" };
@@ -32,11 +33,11 @@ export default async function AccountOrders() {
               <td>
                 <Link href={`/orders/${o.id}`}>{o.number}</Link>
               </td>
-              <td>{new Date(o.created_at + "Z").toLocaleDateString("ru-RU")}</td>
+              <td>{formatDate(o.created_at, false)}</td>
               <td>{o.items.map((i) => i.title).join(", ")}</td>
-              <td>{rub(o.total)}</td>
+              <td>{money(o.total)}</td>
               <td>
-                <span className={`pill ${o.status === "awaiting_payment" ? "pill-warn" : "pill-ok"}`}>{ORDER_STATUSES[o.status]}</span>
+                <OrderStatusPill status={o.status} />
               </td>
             </tr>
           ))}

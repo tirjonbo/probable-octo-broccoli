@@ -1,5 +1,4 @@
 import { getUser } from "@/lib/auth";
-import type { DeliveryId } from "@/lib/catalog";
 import { body, handle, ok, str } from "@/lib/http";
 import { computeTotals, getCart } from "@/lib/shop";
 
@@ -10,7 +9,6 @@ export async function POST(req: Request) {
     const user = await getUser();
     const lines = user ? getCart(user.id) : [];
     const totals = computeTotals(lines, {
-      delivery: (str(b.delivery) || "pickup") as DeliveryId,
       promo: str(b.promo) || undefined,
       certificate: str(b.certificate) || undefined,
     });

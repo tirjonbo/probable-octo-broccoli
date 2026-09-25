@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CERTIFICATE_NOMINALS, rub } from "@/lib/catalog";
+import { CERTIFICATE_NOMINALS, money } from "@/lib/catalog";
 
 export function CertificateBuy() {
   const router = useRouter();
@@ -13,12 +13,12 @@ export function CertificateBuy() {
       <div className="choices">
         {CERTIFICATE_NOMINALS.map((n) => (
           <button key={n} type="button" className="choice" aria-pressed={amount === n} onClick={() => setAmount(n)}>
-            {rub(n)}
+            {money(n)}
           </button>
         ))}
       </div>
       <div className="spread" style={{ marginTop: 16 }}>
-        <div className="price-big">{rub(amount)}</div>
+        <div className="price-big">{money(amount)}</div>
         <button
           className="btn"
           disabled={busy}

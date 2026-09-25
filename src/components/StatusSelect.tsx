@@ -32,3 +32,26 @@ export function StatusSelect({ id, status }: { id: string; status: OrderStatus }
     </select>
   );
 }
+
+export function MarkPaidButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      className="btn btn-ghost btn-sm"
+      disabled={busy}
+      onClick={async () => {
+        if (!confirm("Отметить, что оплата получена?")) return;
+        setBusy(true);
+        await fetch(`/api/admin/orders/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paid: true }),
+        });
+        router.refresh();
+      }}
+    >
+      Оплата получена
+    </button>
+  );
+}

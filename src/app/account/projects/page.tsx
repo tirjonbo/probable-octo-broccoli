@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { getUser } from "@/lib/auth";
-import { describeConfig, getProduct, priceFor, rub } from "@/lib/catalog";
+import { describeConfig, getProduct, priceFor, money } from "@/lib/catalog";
 import { filledSlots } from "@/lib/project";
 import { listProjects } from "@/lib/shop";
 
@@ -33,7 +33,7 @@ export default async function AccountProjects() {
                 {product.title} · {describeConfig(product, p.config)}
               </div>
               <div className="small" style={{ marginTop: 4 }}>
-                Заполнено {filled} из {total} · {rub(priceFor(product, p.config))}
+                Заполнено {filled} из {total} · {money(priceFor(product, p.config))}
               </div>
             </div>
             <div className="spread">

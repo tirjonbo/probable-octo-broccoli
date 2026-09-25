@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FREE_DELIVERY_FROM, rub } from "@/lib/catalog";
+import { DELIVERY, money } from "@/lib/catalog";
 import type { CartLine } from "@/lib/shop";
 
 export function CartView({ initial }: { initial: CartLine[] }) {
@@ -56,7 +56,7 @@ export function CartView({ initial }: { initial: CartLine[] }) {
                 <span>{l.qty}</span>
                 <button onClick={() => mutate(`/api/cart/${l.id}`, "PATCH", { qty: l.qty + 1 })} aria-label="Больше">+</button>
               </div>
-              <div style={{ marginTop: 8 }}>{rub(l.unitPrice * l.qty)}</div>
+              <div style={{ marginTop: 8 }}>{money(l.unitPrice * l.qty)}</div>
             </div>
           </div>
         ))}
@@ -64,15 +64,18 @@ export function CartView({ initial }: { initial: CartLine[] }) {
       <div className="card summary">
         <div className="summary-row">
           <span>Товары</span>
-          <span>{rub(subtotal)}</span>
+          <span>{money(subtotal)}</span>
         </div>
         {goods > 0 && (
-          <p className="muted small">
-            {goods >= FREE_DELIVERY_FROM
-              ? "Доставка бесплатно"
-              : `До бесплатной доставки: ${rub(FREE_DELIVERY_FROM - goods)}`}
-          </p>
+          <div className="summary-row">
+            <span>Доставка по Ташкенту</span>
+            <span>{money(DELIVERY.price)}</span>
+          </div>
         )}
+        <div className="summary-row summary-total">
+          <span>Итого</span>
+          <span>{money(subtotal + (goods > 0 ? DELIVERY.price : 0))}</span>
+        </div>
         <Link href="/checkout" className="btn btn-block" style={{ marginTop: 12 }}>
           Оформить заказ
         </Link>

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { type ProjectConfig, type Product, defaultConfig, getProduct, priceFor, rub } from "@/lib/catalog";
+import { type ProjectConfig, type Product, defaultConfig, getProduct, priceFor, money } from "@/lib/catalog";
 
 export function ConfigFields({
   product,
@@ -20,7 +20,7 @@ export function ConfigFields({
         {product.formats.map((f) => (
           <button key={f.id} type="button" className="choice" aria-pressed={config.format === f.id} onClick={() => set({ format: f.id })}>
             {f.label}
-            <small>{rub(f.price)}</small>
+            <small>{money(f.price)}</small>
           </button>
         ))}
       </Group>
@@ -29,7 +29,7 @@ export function ConfigFields({
           {product.covers.map((c) => (
             <button key={c.id} type="button" className="choice" aria-pressed={config.cover === c.id} onClick={() => set({ cover: c.id })}>
               {c.label}
-              <small>{c.price ? `+ ${rub(c.price)}` : "включено"}</small>
+              <small>{c.price ? `+ ${money(c.price)}` : "включено"}</small>
             </button>
           ))}
         </Group>
@@ -39,7 +39,7 @@ export function ConfigFields({
           {product.papers.map((c) => (
             <button key={c.id} type="button" className="choice" aria-pressed={config.paper === c.id} onClick={() => set({ paper: c.id })}>
               {c.label}
-              <small>{c.price ? `+ ${rub(c.price)}` : "включено"}</small>
+              <small>{c.price ? `+ ${money(c.price)}` : "включено"}</small>
             </button>
           ))}
         </Group>
@@ -58,7 +58,7 @@ export function ConfigFields({
           />
           <div className="muted small">
             {product.pages.min}–{product.pages.max}, каждые {product.pages.step} сверх {product.pages.included} — +
-            {rub(product.pages.pricePerStep)}
+            {money(product.pages.pricePerStep)}
           </div>
         </Group>
       )}
@@ -110,7 +110,7 @@ export function Configurator({ slug }: { slug: string }) {
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например, «Лето на Байкале»" maxLength={80} />
       </label>
       <div className="spread" style={{ marginTop: 20 }}>
-        <div className="price-big">{rub(priceFor(product, config))}</div>
+        <div className="price-big">{money(priceFor(product, config))}</div>
         <button className="btn" onClick={start} disabled={busy}>
           {busy ? "Создаём…" : "Перейти в редактор"}
         </button>

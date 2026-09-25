@@ -1,16 +1,17 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { DELIVERY_METHODS, type DeliveryId, rub } from "@/lib/catalog";
+import { DELIVERY, PAYMENT_METHODS, type PaymentMethod, money } from "@/lib/catalog";
 import type { CartLine, Totals } from "@/lib/shop";
 
 export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults: { name: string; email: string; phone: string } }) {
   const router = useRouter();
-  const [contact, setContact] = useState(defaults);
-  const [method, setMethod] = useState<DeliveryId>("pickup");
-  const [city, setCity] = useState("");
+  const [contact, setContact] = useState({ ...defaults, phone: defaults.phone || "+998 " });
   const [address, setAddress] = useState("");
+  const [landmark, setLandmark] = useState("");
   const [comment, setComment] = useState("");
+  const [payment, setPayment] = useState<PaymentMethod>("cash");
   const [promoInput, setPromoInput] = useState("");
   const [certInput, setCertInput] = useState("");
   const [promo, setPromo] = useState("");
@@ -25,7 +26,7 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
     const res = await fetch("/api/checkout/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ delivery: method, promo: next.promo, certificate: next.cert }),
+      body: JSON.stringify({ promo: next.promo, certificate: next.cert }),
     });
     const json = await res.json();
     if (!res.ok) return json.error as string;
@@ -34,9 +35,8 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
   }
 
   useEffect(() => {
-    quote({ promo, cert });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method]);
+    quote({ promo: "", cert: "" });
+  }, []);
 
   async function applyCode(kind: "promo" | "cert") {
     setCodeError("");
@@ -54,7 +54,7 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
     const res = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact, delivery: { method, city, address, comment }, promo, certificate: cert }),
+      body: JSON.stringify({ contact, delivery: { address, landmark, comment }, payment, promo, certificate: cert }),
     });
     const json = await res.json();
     if (!res.ok) {
@@ -78,52 +78,73 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
           <h3>Контакты</h3>
           <div className="grid grid-3">
             <label className="field">
-              <span>Имя и фамилия</span>
+              <span>Имя</span>
               <input required autoComplete="name" {...c("name")} />
             </label>
             <label className="field">
               <span>Телефон</span>
-              <input required type="tel" autoComplete="tel" placeholder="+7 900 000-00-00" {...c("phone")} />
+              <input required type="tel" autoComplete="tel" placeholder="+998 90 123 45 67" {...c("phone")} />
             </label>
             <label className="field">
-              <span>E-mail</span>
-              <input required type="email" autoComplete="email" {...c("email")} />
+              <span>E-mail (необязательно)</span>
+              <input type="email" autoComplete="email" {...c("email")} />
             </label>
           </div>
+          <p className="muted small" style={{ margin: 0 }}>
+            Менеджер позвонит, чтобы подтвердить заказ перед печатью.
+          </p>
         </div>
 
+        {needsShipping ? (
+          <div className="card stack">
+            <div className="spread">
+              <h3 style={{ margin: 0 }}>Доставка по Ташкенту</h3>
+              <span>{money(DELIVERY.price)}</span>
+            </div>
+            <p className="muted small" style={{ margin: 0 }}>
+              Курьер привезёт заказ через {DELIVERY.days}. Сейчас доставляем только по Ташкенту.
+            </p>
+            <label className="field">
+              <span>Адрес: район, улица, дом, квартира</span>
+              <input required value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" />
+            </label>
+            <label className="field">
+              <span>Ориентир</span>
+              <input value={landmark} onChange={(e) => setLandmark(e.target.value)} placeholder="Например, рядом с метро или школой" />
+            </label>
+            <label className="field">
+              <span>Комментарий к заказу</span>
+              <textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} />
+            </label>
+          </div>
+        ) : (
+          <div className="card">
+            <h3>Получение</h3>
+            <p className="muted" style={{ margin: 0 }}>
+              Сертификат электронный: код появится на странице заказа после оплаты. Менеджер свяжется с вами, чтобы
+              договориться об оплате.
+            </p>
+          </div>
+        )}
+
         <div className="card stack">
-          <h3>Доставка</h3>
-          {needsShipping ? (
-            <>
-              <div className="choices">
-                {DELIVERY_METHODS.map((m) => (
-                  <button key={m.id} type="button" className="choice" aria-pressed={method === m.id} onClick={() => setMethod(m.id)}>
-                    {m.label}
-                    <small>
-                      {m.days} · {rub(m.price)}
-                    </small>
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-2">
-                <label className="field">
-                  <span>Город</span>
-                  <input required value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
-                </label>
-                <label className="field">
-                  <span>{method === "pickup" ? "Адрес пункта выдачи" : "Улица, дом, квартира"}</span>
-                  <input required value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" />
-                </label>
-              </div>
-              <label className="field">
-                <span>Комментарий к заказу</span>
-                <textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} />
-              </label>
-            </>
-          ) : (
-            <p className="muted">Сертификаты электронные — код придёт на e-mail и появится на странице заказа.</p>
-          )}
+          <h3>Оплата</h3>
+          <div className="choices">
+            {PAYMENT_METHODS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="choice"
+                aria-pressed={payment === m.id}
+                disabled={!m.available}
+                style={m.available ? undefined : { opacity: 0.5, cursor: "not-allowed" }}
+                onClick={() => setPayment(m.id)}
+              >
+                {m.label}
+                <small>{m.hint}</small>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="card stack">
@@ -158,45 +179,46 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
             <span>
               {l.title} × {l.qty}
             </span>
-            <span>{rub(l.unitPrice * l.qty)}</span>
+            <span>{money(l.unitPrice * l.qty)}</span>
           </div>
         ))}
         {totals && (
           <>
             <div className="summary-row" style={{ borderTop: "1px solid var(--line)", marginTop: 8, paddingTop: 12 }}>
               <span>Товары</span>
-              <span>{rub(totals.subtotal)}</span>
+              <span>{money(totals.subtotal)}</span>
             </div>
             {totals.discount > 0 && (
               <div className="summary-row">
                 <span>Скидка</span>
-                <span>−{rub(totals.discount)}</span>
+                <span>−{money(totals.discount)}</span>
               </div>
             )}
             {needsShipping && (
               <div className="summary-row">
                 <span>Доставка</span>
-                <span>{totals.delivery === 0 ? "бесплатно" : rub(totals.delivery)}</span>
+                <span>{money(totals.delivery)}</span>
               </div>
             )}
             {totals.certificate > 0 && (
               <div className="summary-row">
                 <span>Сертификат</span>
-                <span>−{rub(totals.certificate)}</span>
+                <span>−{money(totals.certificate)}</span>
               </div>
             )}
             <div className="summary-row summary-total">
-              <span>Итого</span>
-              <span>{rub(totals.total)}</span>
+              <span>К оплате</span>
+              <span>{money(totals.total)}</span>
             </div>
           </>
         )}
         {error && <p className="error">{error}</p>}
         <button className="btn btn-block" style={{ marginTop: 16 }} disabled={busy}>
-          {busy ? "Оформляем…" : totals?.total === 0 ? "Подтвердить заказ" : "Перейти к оплате"}
+          {busy ? "Оформляем…" : "Оформить заказ"}
         </button>
         <p className="muted small" style={{ marginTop: 10 }}>
-          Нажимая кнопку, вы соглашаетесь с условиями обработки персональных данных.
+          Нажимая кнопку, вы принимаете <Link href="/offer">условия оферты</Link> и{" "}
+          <Link href="/privacy">политику конфиденциальности</Link>.
         </p>
       </div>
     </form>
