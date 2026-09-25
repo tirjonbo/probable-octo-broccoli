@@ -16,5 +16,5 @@ export async function POST(req: Request) {
     if (b.certificateAmount) addCertificateToCart(user.id, Number(b.certificateAmount));
     else addProjectToCart(user.id, str(b.projectId));
     return ok({ items: getCart(user.id) });
-  });
+  }, req);
 }

@@ -1,17 +1,20 @@
-import { DELIVERY, money } from "@/lib/catalog";
+import { money } from "@/lib/catalog";
+import { getSettings, listProducts } from "@/lib/content-store";
 
 export const metadata = { title: "Доставка и оплата" };
 
 export default function DeliveryPage() {
+  const { delivery } = getSettings();
+  const products = listProducts(true).filter((p) => p.productionDays);
   return (
     <div className="container section" style={{ maxWidth: 820 }}>
       <h1>Доставка и оплата</h1>
       <div className="grid grid-2" style={{ marginTop: 24 }}>
         <div className="card">
-          <h3>Курьер по Ташкенту</h3>
-          <div className="price-big">{money(DELIVERY.price)}</div>
+          <h3>Курьер по г. {delivery.city}</h3>
+          <div className="price-big">{delivery.price ? money(delivery.price) : "Бесплатно"}</div>
           <p className="muted small">
-            Привезём через {DELIVERY.days}. Перед выездом курьер позвонит. Пока доставляем только по Ташкенту.
+            {delivery.days && <>Привезём через {delivery.days}. </>}Перед выездом курьер позвонит.
           </p>
         </div>
         <div className="card">
@@ -27,12 +30,18 @@ export default function DeliveryPage() {
         <li>Печатаем и проверяем качество.</li>
         <li>Курьер привозит заказ, вы оплачиваете наличными.</li>
       </ol>
-      <h2 style={{ marginTop: 32 }}>Сроки изготовления</h2>
-      <ul>
-        <li>Фотокниги — 5–7 рабочих дней</li>
-        <li>Фотожурналы и календари — 3–5 рабочих дней</li>
-        <li>Открытки — 2–4 рабочих дня</li>
-      </ul>
+      {products.length > 0 && (
+        <>
+          <h2 style={{ marginTop: 32 }}>Сроки изготовления</h2>
+          <ul>
+            {products.map((p) => (
+              <li key={p.slug}>
+                {p.title} — {p.productionDays}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

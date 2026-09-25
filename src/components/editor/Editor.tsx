@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigFields } from "@/components/Configurator";
-import { type ProjectConfig, getProduct, priceFor, money } from "@/lib/catalog";
+import { type Product, type ProjectConfig, priceFor, money } from "@/lib/catalog";
 import {
   LAYOUTS,
   type LayoutId,
@@ -25,8 +25,7 @@ type DragSource = { photo: string; from?: { page: number; slot: number } | "cove
 
 export const photoUrl = (id: string) => `/api/uploads/${id}`;
 
-export function Editor({ initial, signedIn }: { initial: Project; signedIn: boolean }) {
-  const product = getProduct(initial.product)!;
+export function Editor({ initial, product, signedIn }: { initial: Project; product: Product; signedIn: boolean }) {
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
   const [config, setConfig] = useState(initial.config);

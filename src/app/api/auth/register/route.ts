@@ -6,5 +6,5 @@ export async function POST(req: Request) {
     const b = await body(req);
     const user = await register({ email: str(b.email), password: str(b.password, 200), name: str(b.name, 100) });
     return ok({ user });
-  });
+  }, req);
 }

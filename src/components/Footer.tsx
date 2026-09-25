@@ -1,20 +1,21 @@
 import Link from "next/link";
-import { PRODUCTS } from "@/lib/catalog";
-import { SITE } from "@/lib/site";
+import { getSettings, listProducts } from "@/lib/content-store";
 
 export function Footer() {
+  const { site } = getSettings();
+  const products = listProducts(true);
   return (
     <footer className="footer">
       <div className="container grid grid-4">
         <div>
           <div className="logo" style={{ marginBottom: 8 }}>
-            Стр<b style={{ color: "var(--accent)", fontWeight: 400 }}>а</b>ницы
+            {site.name}
           </div>
-          <p className="muted small">Фотокниги с доставкой по Ташкенту.</p>
+          {site.tagline && <p className="muted small">{site.tagline}</p>}
         </div>
         <div>
           <strong>Продукты</strong>
-          {PRODUCTS.map((p) => (
+          {products.map((p) => (
             <Link key={p.slug} href={`/catalog/${p.slug}`}>
               {p.title}
             </Link>
@@ -32,12 +33,14 @@ export function Footer() {
         <div>
           <strong>Связь</strong>
           <Link href="/contacts">Контакты</Link>
-          <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>{SITE.phone}</a>
-          <a href={`https://t.me/${SITE.telegram}`}>Telegram</a>
+          {site.phone && <a href={`tel:${site.phone.replace(/[^\d+]/g, "")}`}>{site.phone}</a>}
+          {site.telegram && <a href={`https://t.me/${site.telegram}`}>Telegram</a>}
+          {site.instagram && <a href={`https://instagram.com/${site.instagram}`}>Instagram</a>}
         </div>
       </div>
       <div className="container muted small" style={{ marginTop: 32 }}>
-        © {new Date().getFullYear()} {SITE.name}. {SITE.company}
+        © {new Date().getFullYear()} {site.name}
+        {site.company && `. ${site.company}`}
       </div>
     </footer>
   );

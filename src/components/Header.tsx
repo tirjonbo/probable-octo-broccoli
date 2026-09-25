@@ -11,16 +11,16 @@ const LINKS = [
   { href: "/contacts", label: "Контакты" },
 ];
 
-export function Header({ cartCount, signedIn, isAdmin }: { cartCount: number; signedIn: boolean; isAdmin: boolean }) {
+export function Header({ siteName, cartCount, signedIn, isAdmin }: { siteName: string; cartCount: number; signedIn: boolean; isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   useEffect(() => setOpen(false), [pathname]);
-  if (pathname.startsWith("/editor/")) return null;
+  if (pathname.startsWith("/editor/") || pathname.startsWith("/admin")) return null;
   return (
     <header className="header">
       <div className="container header-inner">
         <Link href="/" className="logo">
-          Стр<b>а</b>ницы
+          {siteName}
         </Link>
         <nav className={`nav ${open ? "open" : ""}`}>
           {LINKS.map((l) => (

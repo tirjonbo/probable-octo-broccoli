@@ -1,27 +1,42 @@
-import { SITE } from "@/lib/site";
+import { getSettings } from "@/lib/content-store";
 
 export const metadata = { title: "Контакты" };
 
 export default function ContactsPage() {
+  const { site } = getSettings();
   return (
     <div className="container section" style={{ maxWidth: 820 }}>
       <h1>Контакты</h1>
       <div className="grid grid-2" style={{ marginTop: 24 }}>
         <div className="card">
-          <h3>Поддержка</h3>
+          <h3>Связаться с нами</h3>
           <p>
-            <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>{SITE.phone}</a>
-            <br />
-            <a href={`https://t.me/${SITE.telegram}`}>Telegram: @{SITE.telegram}</a>
-            <br />
-            <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
+            {site.phone && (
+              <>
+                <a href={`tel:${site.phone.replace(/[^\d+]/g, "")}`}>{site.phone}</a>
+                <br />
+              </>
+            )}
+            {site.telegram && (
+              <>
+                <a href={`https://t.me/${site.telegram}`}>Telegram: @{site.telegram}</a>
+                <br />
+              </>
+            )}
+            {site.instagram && (
+              <>
+                <a href={`https://instagram.com/${site.instagram}`}>Instagram: @{site.instagram}</a>
+                <br />
+              </>
+            )}
+            {site.email && <a href={`mailto:${site.email}`}>{site.email}</a>}
           </p>
-          <p className="muted small">{SITE.hours}</p>
+          {site.hours && <p className="muted small">{site.hours}</p>}
         </div>
         <div className="card">
-          <h3>Производство</h3>
-          <p>{SITE.address}</p>
-          <p className="muted small">{SITE.company}</p>
+          <h3>Адрес</h3>
+          <p>{site.address}</p>
+          {site.company && <p className="muted small">{site.company}</p>}
         </div>
       </div>
     </div>

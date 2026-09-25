@@ -2,18 +2,16 @@ import "server-only";
 import crypto from "node:crypto";
 import { db, newId, tx } from "./db";
 import {
-  CERTIFICATE_NOMINALS,
-  DELIVERY,
   ORDER_STATUSES,
   PAYMENT_METHODS,
   type OrderStatus,
   type PaymentMethod,
   type ProjectConfig,
   describeConfig,
-  getProduct,
   normalizePhone,
   priceFor,
 } from "./catalog";
+import { getProduct, getSettings } from "./content-store";
 import { notify } from "./notify";
 import type { ProjectData } from "./project";
 
@@ -130,7 +128,7 @@ export function addProjectToCart(userId: string, projectId: string) {
 }
 
 export function addCertificateToCart(userId: string, amount: number) {
-  if (!CERTIFICATE_NOMINALS.includes(amount)) throw new ShopError("Недопустимый номинал");
+  if (!getSettings().certificates.nominals.includes(amount)) throw new ShopError("Недопустимый номинал");
   db()
     .prepare("INSERT INTO cart_items (id, user_id, certificate_amount) VALUES (?, ?, ?)")
     .run(newId(), userId, amount);
@@ -185,7 +183,7 @@ export function computeTotals(lines: CartLine[], opts: { promo?: string; certifi
   const promo = opts.promo ? findPromo(opts.promo) : null;
   if (opts.promo && !promo) throw new ShopError("Промокод не найден");
   const discount = promo ? Math.round((goods * promo.percent) / 100) : 0;
-  const delivery = goods > 0 ? DELIVERY.price : 0;
+  const delivery = goods > 0 ? getSettings().delivery.price : 0;
   const cert = opts.certificate ? findCertificate(opts.certificate) : null;
   if (opts.certificate && !cert) throw new ShopError("Сертификат не найден или уже израсходован");
   const payableByCert = goods - discount + delivery;
@@ -221,6 +219,7 @@ export type OrderRow = {
   promo_code: string | null;
   certificate_code: string | null;
   payment_method: PaymentMethod;
+  admin_note: string;
   created_at: string;
   paid_at: string | null;
   items: {
@@ -257,7 +256,7 @@ export function createOrder(
     const contact = validateCheckout(input.contact, input.delivery, needsShipping, input.payment);
     const delivery: Delivery = needsShipping
       ? {
-          city: DELIVERY.city,
+          city: getSettings().delivery.city,
           address: input.delivery.address.trim(),
           landmark: input.delivery.landmark.trim(),
           comment: input.delivery.comment.trim(),
@@ -311,6 +310,7 @@ export function createOrder(
     d.prepare("DELETE FROM cart_items WHERE user_id = ?").run(userId);
     d.prepare("UPDATE users SET name = COALESCE(name, ?), phone = ? WHERE id = ?").run(contact.name, contact.phone, userId);
     if (totals.total === 0) issueCertificates(id);
+    addEvent(id, "Клиент", "Заказ оформлен на сайте");
     return getOrder(id)!;
   });
   notify("order.created", { number: order.number, total: order.total, phone: order.contact.phone });
@@ -336,12 +336,15 @@ function issueCertificates(orderId: string) {
  * После подключения Payme/Click сюда же придёт вебхук провайдера после проверки подписи.
  * Выпускает оплаченные сертификаты. Повторный вызов ничего не делает.
  */
-export function markPaid(orderId: string) {
+export function markPaid(orderId: string, author = "Система") {
   const changed = tx(() => {
     const r = db()
       .prepare("UPDATE orders SET paid_at = ? WHERE id = ? AND paid_at IS NULL AND status != 'cancelled'")
       .run(new Date().toISOString(), orderId);
-    if (r.changes === 1) issueCertificates(orderId);
+    if (r.changes === 1) {
+      issueCertificates(orderId);
+      addEvent(orderId, author, "Оплата получена");
+    }
     return r.changes === 1;
   });
   if (changed) notify("order.paid", { orderId });
@@ -379,14 +382,36 @@ export function listOrders(userId?: string): OrderRow[] {
   return rows.map(hydrate);
 }
 
-export function setOrderStatus(id: string, status: OrderStatus) {
+/** Снимает отметку об оплате (ошибка менеджера). Выпущенные сертификаты деактивируются, если не потрачены. */
+export function unmarkPaid(orderId: string, author: string) {
+  tx(() => {
+    const d = db();
+    const r = d.prepare("UPDATE orders SET paid_at = NULL WHERE id = ? AND paid_at IS NOT NULL").run(orderId);
+    if (r.changes !== 1) return;
+    d.prepare("UPDATE certificates SET active = 0 WHERE order_id = ? AND balance = amount").run(orderId);
+    addEvent(orderId, author, "Отметка об оплате снята");
+  });
+}
+
+export function addEvent(orderId: string, author: string, text: string) {
+  db().prepare("INSERT INTO order_events (id, order_id, author, text) VALUES (?, ?, ?, ?)").run(newId(), orderId, author, text);
+}
+
+export function listEvents(orderId: string): { author: string; text: string; created_at: string }[] {
+  return db()
+    .prepare("SELECT author, text, created_at FROM order_events WHERE order_id = ? ORDER BY created_at, rowid")
+    .all(orderId) as { author: string; text: string; created_at: string }[];
+}
+
+export function setOrderStatus(id: string, status: OrderStatus, author = "Система") {
   const changed = tx(() => {
     const d = db();
     const prev = d.prepare("SELECT status, certificate_code, certificate_used FROM orders WHERE id = ?").get(id) as
       | { status: OrderStatus; certificate_code: string | null; certificate_used: number }
       | undefined;
     if (!prev || prev.status === status) return false;
-    d.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
+    d.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
+    addEvent(id, author, `Статус: ${ORDER_STATUSES[prev.status] ?? prev.status} → ${ORDER_STATUSES[status]}`);
     // Сертификат списывается при оформлении — при отмене возвращаем остаток, при восстановлении снова списываем.
     if (prev.certificate_code && prev.certificate_used > 0) {
       const delta = status === "cancelled" ? prev.certificate_used : prev.status === "cancelled" ? -prev.certificate_used : 0;
@@ -396,6 +421,6 @@ export function setOrderStatus(id: string, status: OrderStatus) {
   });
   if (!changed) return;
   // Доставлен наличными — значит, курьер получил оплату.
-  if (status === "delivered") markPaid(id);
+  if (status === "delivered") markPaid(id, author);
   notify("order.status", { orderId: id, status: ORDER_STATUSES[status] });
 }

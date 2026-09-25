@@ -3,12 +3,17 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getUser } from "@/lib/auth";
+import { getSettings } from "@/lib/content-store";
 import { cartCount } from "@/lib/shop";
 
-export const metadata: Metadata = {
-  title: { default: "Страницы — фотокниги, журналы и календари", template: "%s · Страницы" },
-  description: "Соберите фотокнигу онлайн за вечер: загрузите фото, выберите оформление и получите печатную книгу с доставкой по Ташкенту.",
-};
+export function generateMetadata(): Metadata {
+  const { seo, site } = getSettings();
+  return {
+    title: { default: seo.title, template: `%s · ${site.name}` },
+    description: seo.description,
+    openGraph: { title: seo.title, description: seo.description, siteName: site.name, locale: "ru_RU", type: "website" },
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser();
@@ -16,7 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="ru">
       <body>
-        <Header cartCount={count} signedIn={!!user?.email} isAdmin={user?.role === "admin"} />
+        <Header siteName={getSettings().site.name} cartCount={count} signedIn={!!user?.email} isAdmin={user?.role === "admin"} />
         <main>{children}</main>
         <Footer />
       </body>

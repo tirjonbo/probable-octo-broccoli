@@ -6,5 +6,5 @@ export async function POST(req: Request) {
     const b = await body(req);
     const user = await login(str(b.email), str(b.password, 200));
     return ok({ user });
-  });
+  }, req);
 }

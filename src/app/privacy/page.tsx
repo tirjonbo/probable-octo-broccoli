@@ -1,20 +1,13 @@
-import { SITE } from "@/lib/site";
+import { LegalText } from "@/components/LegalText";
+import { getSettings } from "@/lib/content-store";
 
 export const metadata = { title: "Политика конфиденциальности" };
 
-// Заглушка: текст должен подготовить юрист с учётом закона РУз «О персональных данных».
 export default function PrivacyPage() {
   return (
     <div className="container section" style={{ maxWidth: 820 }}>
       <h1>Политика конфиденциальности</h1>
-      <p className="notice">Черновик. Полный текст будет опубликован до начала приёма заказов.</p>
-      <p style={{ marginTop: 24 }}>
-        Мы собираем имя, телефон, адрес доставки и загруженные фотографии только для изготовления и доставки заказа.
-        Фотографии доступны лишь вам и сотрудникам производства и не передаются третьим лицам.
-      </p>
-      <p>
-        Чтобы удалить свои данные, напишите на <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.
-      </p>
+      <LegalText text={getSettings().legal.privacy} />
     </div>
   );
 }

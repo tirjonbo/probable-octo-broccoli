@@ -8,15 +8,30 @@ export type Format = {
   /** Соотношение сторон страницы (ширина / высота) — используется редактором. */
   aspect: number;
   price: number;
+  /** Размер в сантиметрах — для админки; aspect считается из них. */
+  width?: number;
+  height?: number;
+};
+
+export type ProductKind = "book" | "calendar" | "cards";
+
+export const PRODUCT_KINDS: Record<ProductKind, string> = {
+  book: "Книга / журнал (развороты)",
+  calendar: "Календарь (листы)",
+  cards: "Открытки (карточки)",
 };
 
 export type Product = {
   slug: string;
+  /** id картинки из медиатеки или null — тогда рисуется иллюстрация. */
+  image: string | null;
+  active: boolean;
+  sort: number;
   title: string;
   short: string;
   description: string;
   color: string;
-  kind: "book" | "calendar" | "cards" | "certificate";
+  kind: ProductKind;
   formats: Format[];
   covers: OptionChoice[];
   papers: OptionChoice[];
@@ -25,7 +40,9 @@ export type Product = {
   productionDays: string;
 };
 
-export const PRODUCTS: Product[] = [
+type SeedProduct = Omit<Product, "image" | "active" | "sort">;
+
+const SEED: SeedProduct[] = [
   {
     slug: "photobook",
     title: "Фотокнига",
@@ -122,10 +139,8 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-export const CERTIFICATE_NOMINALS = [200_000, 300_000, 500_000, 1_000_000];
-
-/** Доставка: только курьером по Ташкенту, фиксированная цена. */
-export const DELIVERY = { city: "Ташкент", price: 50_000, days: "1–2 дня после изготовления" } as const;
+/** Стартовый каталог — записывается в базу при первом запуске, дальше редактируется в админке. */
+export const DEFAULT_PRODUCTS: Product[] = SEED.map((p, i) => ({ ...p, image: null, active: true, sort: i }));
 
 /** Способы оплаты. Онлайн-оплата — заглушка до подключения Payme/Click. */
 export const PAYMENT_METHODS = [
@@ -137,10 +152,6 @@ export const PAYMENT_METHODS = [
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]["id"];
 
 export type ProjectConfig = { format: string; cover: string; paper: string; pages: number };
-
-export function getProduct(slug: string): Product | undefined {
-  return PRODUCTS.find((p) => p.slug === slug);
-}
 
 export function defaultConfig(p: Product): ProjectConfig {
   return { format: p.formats[0].id, cover: p.covers[0].id, paper: p.papers[0].id, pages: p.pages.min };
@@ -216,3 +227,96 @@ export const ORDER_STATUSES = {
 } as const;
 
 export type OrderStatus = keyof typeof ORDER_STATUSES;
+
+/** Пересчёт суммы заказа после правок менеджера. */
+export function recalcTotals(
+  items: { price: number; qty: number }[],
+  o: { discount: number; delivery_price: number; certificate_used: number },
+): { subtotal: number; total: number } {
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  return { subtotal, total: Math.max(0, subtotal - o.discount + o.delivery_price - o.certificate_used) };
+}
+
+// ---------- Проверка продукта из админки ----------
+
+const int = (v: unknown, name: string, min = 0) => {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < min) throw new Error(`${name}: укажите число не меньше ${min}`);
+  return n;
+};
+const text = (v: unknown, name: string, max = 300, required = true) => {
+  const s = typeof v === "string" ? v.trim().slice(0, max) : "";
+  if (required && !s) throw new Error(`Заполните поле «${name}»`);
+  return s;
+};
+
+function options(v: unknown, name: string): OptionChoice[] {
+  if (!Array.isArray(v) || v.length === 0) throw new Error(`${name}: нужен хотя бы один вариант`);
+  const ids = new Set<string>();
+  return v.map((o: Record<string, unknown>, i) => {
+    const id = text(o?.id, `${name} №${i + 1}: id`, 40);
+    if (ids.has(id)) throw new Error(`${name}: повторяется id «${id}»`);
+    ids.add(id);
+    const hint = text(o?.hint, "Подсказка", 120, false);
+    return { id, label: text(o?.label, `${name} №${i + 1}: название`, 120), price: int(o?.price, `${name}: цена`), ...(hint ? { hint } : {}) };
+  });
+}
+
+/** Приводит присланный из админки продукт к корректному виду или кидает ошибку с понятным текстом. */
+export function validateProduct(x: Record<string, unknown>): Product {
+  const slug = text(x.slug, "Адрес (slug)", 60);
+  if (!/^[a-z0-9-]+$/.test(slug)) throw new Error("Адрес (slug): только латиница в нижнем регистре, цифры и дефис");
+  const kind = x.kind as ProductKind;
+  if (!(kind in PRODUCT_KINDS)) throw new Error("Выберите тип продукта");
+  const formatsRaw = x.formats;
+  if (!Array.isArray(formatsRaw) || formatsRaw.length === 0) throw new Error("Форматы: нужен хотя бы один");
+  const fids = new Set<string>();
+  const formats: Format[] = formatsRaw.map((f: Record<string, unknown>, i) => {
+    const id = text(f?.id, `Формат №${i + 1}: id`, 40);
+    if (fids.has(id)) throw new Error(`Форматы: повторяется id «${id}»`);
+    fids.add(id);
+    const width = Number(f?.width);
+    const height = Number(f?.height);
+    const sized = width > 0 && height > 0;
+    const aspect = sized ? width / height : Number(f?.aspect);
+    if (!(aspect > 0.2 && aspect < 5)) throw new Error(`Формат «${id}»: некорректные размеры`);
+    return {
+      id,
+      label: text(f?.label, `Формат №${i + 1}: название`, 120),
+      aspect,
+      price: int(f?.price, "Формат: цена"),
+      ...(sized ? { width, height } : {}),
+    };
+  });
+  const pg = (x.pages ?? {}) as Record<string, unknown>;
+  const pages = {
+    min: int(pg.min, "Страниц минимум", 1),
+    max: int(pg.max, "Страниц максимум", 1),
+    step: int(pg.step, "Шаг страниц", 1),
+    included: int(pg.included, "Страниц в базовой цене", 0),
+    pricePerStep: int(pg.pricePerStep, "Цена за шаг", 0),
+  };
+  if (pages.max < pages.min) throw new Error("Страниц максимум должно быть не меньше минимума");
+  if (pages.max > 400) throw new Error("Страниц максимум — не больше 400");
+  const color = text(x.color, "Цвет", 20);
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error("Цвет в формате #RRGGBB");
+  return {
+    slug,
+    image: typeof x.image === "string" && x.image ? x.image : null,
+    active: x.active !== false,
+    sort: Math.round(Number(x.sort)) || 0,
+    title: text(x.title, "Название", 80),
+    short: text(x.short, "Короткое описание", 160, false),
+    description: text(x.description, "Описание", 2000, false),
+    color,
+    kind,
+    formats,
+    covers: options(x.covers, "Обложки"),
+    papers: options(x.papers, "Бумага"),
+    pages,
+    features: Array.isArray(x.features)
+      ? x.features.map((f) => text(f, "Преимущество", 80, false)).filter(Boolean).slice(0, 6)
+      : [],
+    productionDays: text(x.productionDays, "Срок изготовления", 60, false),
+  };
+}

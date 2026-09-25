@@ -4,9 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { hashPassword } from "./password";
+import { DEFAULT_PRODUCTS } from "./catalog";
 
 export const DATA_DIR = process.env.DATA_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), "data");
 export const UPLOAD_DIR = path.join(/* turbopackIgnore: true */ DATA_DIR, "uploads");
+export const MEDIA_DIR = path.join(/* turbopackIgnore: true */ DATA_DIR, "media");
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -91,17 +93,73 @@ CREATE TABLE IF NOT EXISTS certificates (
   active INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS products (
+  slug TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  sort INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  text TEXT NOT NULL DEFAULT '',
+  button_label TEXT NOT NULL DEFAULT '',
+  link TEXT NOT NULL DEFAULT '',
+  image TEXT,
+  color TEXT NOT NULL DEFAULT '#efe6da',
+  active INTEGER NOT NULL DEFAULT 1,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS media (
+  id TEXT PRIMARY KEY,
+  file TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS order_events (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  author TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_order_events ON order_events(order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_user ON cart_items(user_id);
 CREATE TABLE IF NOT EXISTS reviews (
   id TEXT PRIMARY KEY,
   author TEXT NOT NULL,
   text TEXT NOT NULL,
   rating INTEGER NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `;
 
 function seed(db: DatabaseSync) {
-  db.prepare("INSERT OR IGNORE INTO promo_codes (code, percent) VALUES (?, ?)").run("WELCOME10", 10);
+  const first = (db.prepare("SELECT COUNT(*) AS n FROM products").get() as { n: number }).n === 0;
+  if (first) {
+    // Первый запуск: стартовый каталог, приветственный промокод и баннер.
+    const ins = db.prepare("INSERT INTO products (slug, data, active, sort) VALUES (?, ?, 1, ?)");
+    for (const p of DEFAULT_PRODUCTS) ins.run(p.slug, JSON.stringify(p), p.sort);
+    db.prepare("INSERT OR IGNORE INTO promo_codes (code, percent) VALUES (?, ?)").run("WELCOME10", 10);
+    if ((db.prepare("SELECT COUNT(*) AS n FROM banners").get() as { n: number }).n === 0)
+      db.prepare("INSERT INTO banners (id, title, text, button_label, link, color, sort) VALUES (?, ?, ?, ?, ?, ?, 0)").run(
+        newId(),
+        "Скидка 10% на первый заказ",
+        "Введите промокод WELCOME10 при оформлении.",
+        "Выбрать продукт",
+        "/catalog",
+        "#f4e6e1",
+      );
+  }
   const count = db.prepare("SELECT COUNT(*) AS n FROM reviews").get() as { n: number };
   if (count.n === 0) {
     const ins = db.prepare("INSERT INTO reviews (id, author, text, rating) VALUES (?, ?, ?, ?)");
@@ -126,9 +184,35 @@ function seed(db: DatabaseSync) {
 
 /** Добавляет колонки, появившиеся после создания базы. */
 function migrate(db: DatabaseSync) {
-  const cols = (db.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
-  if (!cols.includes("payment_method"))
-    db.exec("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash'");
+  const has = (table: string, col: string) =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+  if (!has("orders", "payment_method")) db.exec("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash'");
+  if (!has("orders", "admin_note")) db.exec("ALTER TABLE orders ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''");
+  if (!has("orders", "updated_at")) db.exec("ALTER TABLE orders ADD COLUMN updated_at TEXT");
+  if (!has("reviews", "active")) db.exec("ALTER TABLE reviews ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  if (!has("promo_codes", "created_at")) db.exec("ALTER TABLE promo_codes ADD COLUMN created_at TEXT");
+  if (!has("certificates", "note")) db.exec("ALTER TABLE certificates ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+  // Старые сессии копятся — чистим просроченные при старте.
+  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(new Date().toISOString());
+}
+
+/**
+ * node:sqlite отдаёт строки как объекты без прототипа — React не может передать их
+ * в клиентские компоненты. Превращаем результаты get/all в обычные объекты.
+ */
+function plainRows(d: DatabaseSync) {
+  const prepare = d.prepare.bind(d);
+  d.prepare = ((sql: string) => {
+    const st = prepare(sql);
+    const get = st.get.bind(st);
+    const all = st.all.bind(st);
+    st.get = ((...args: Parameters<typeof get>) => {
+      const r = get(...args);
+      return r ? { ...r } : r;
+    }) as typeof st.get;
+    st.all = ((...args: Parameters<typeof all>) => all(...args).map((r) => ({ ...r }))) as typeof st.all;
+    return st;
+  }) as typeof d.prepare;
 }
 
 const globalForDb = globalThis as unknown as { __db?: DatabaseSync };
@@ -136,8 +220,10 @@ const globalForDb = globalThis as unknown as { __db?: DatabaseSync };
 export function db(): DatabaseSync {
   if (!globalForDb.__db) {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    fs.mkdirSync(MEDIA_DIR, { recursive: true });
     const d = new DatabaseSync(path.join(DATA_DIR, "app.db"));
-    d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
+    plainRows(d);
+    d.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
     d.exec(SCHEMA);
     migrate(d);
     seed(d);

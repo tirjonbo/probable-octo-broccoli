@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { getUser } from "@/lib/auth";
-import { describeConfig, getProduct, priceFor, money } from "@/lib/catalog";
+import { describeConfig, priceFor, money } from "@/lib/catalog";
+import { getProduct } from "@/lib/content-store";
 import { filledSlots } from "@/lib/project";
 import { listProjects } from "@/lib/shop";
 
@@ -19,7 +20,8 @@ export default async function AccountProjects() {
   return (
     <div className="grid grid-3">
       {projects.map((p) => {
-        const product = getProduct(p.product)!;
+        const product = getProduct(p.product);
+        if (!product) return null;
         const { filled, total } = filledSlots(p.data);
         const cover = p.data.cover.photo ?? p.data.library[0];
         return (

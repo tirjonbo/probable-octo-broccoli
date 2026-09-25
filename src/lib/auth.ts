@@ -103,12 +103,42 @@ export async function register(input: { email: string; password: string; name: s
   return (await getUserById(userId))!;
 }
 
+// Ограничение подбора пароля: не больше 10 неудачных попыток на e-mail за 15 минут.
+const failures = new Map<string, { count: number; until: number }>();
+const WINDOW = 15 * 60 * 1000;
+
+function checkRate(key: string) {
+  const f = failures.get(key);
+  if (f && f.until > Date.now() && f.count >= 10) throw new AuthError("Слишком много попыток. Попробуйте через 15 минут");
+}
+function recordFailure(key: string) {
+  const f = failures.get(key);
+  if (!f || f.until < Date.now()) failures.set(key, { count: 1, until: Date.now() + WINDOW });
+  else f.count++;
+  if (failures.size > 10_000) failures.clear();
+}
+
+export async function changePassword(userId: string, current: string, next: string) {
+  if (next.length < 8) throw new AuthError("Новый пароль — минимум 8 символов");
+  const row = db().prepare("SELECT password_hash FROM users WHERE id = ?").get(userId) as { password_hash: string } | undefined;
+  if (!row || !verifyPassword(current, row.password_hash)) throw new AuthError("Текущий пароль неверный");
+  db().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(next), userId);
+  // Остальные устройства выходят из аккаунта, текущая сессия остаётся.
+  const token = (await cookies()).get(COOKIE)?.value ?? "";
+  db().prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?").run(userId, token);
+}
+
 export async function login(emailRaw: string, password: string): Promise<User> {
   const email = emailRaw.trim().toLowerCase();
+  checkRate(email);
   const row = db().prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email) as
     | { id: string; password_hash: string }
     | undefined;
-  if (!row || !verifyPassword(password, row.password_hash)) throw new AuthError("Неверный e-mail или пароль");
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    recordFailure(email);
+    throw new AuthError("Неверный e-mail или пароль");
+  }
+  failures.delete(email);
   const current = await getUser();
   if (current && !current.email) tx(() => mergeGuest(current.id, row.id));
   await setSessionCookie(createSession(row.id));

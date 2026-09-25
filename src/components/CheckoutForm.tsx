@@ -2,10 +2,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { DELIVERY, PAYMENT_METHODS, type PaymentMethod, money } from "@/lib/catalog";
+import { PAYMENT_METHODS, type PaymentMethod, money } from "@/lib/catalog";
 import type { CartLine, Totals } from "@/lib/shop";
 
-export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults: { name: string; email: string; phone: string } }) {
+export function CheckoutForm({
+  items,
+  defaults,
+  delivery,
+}: {
+  items: CartLine[];
+  defaults: { name: string; email: string; phone: string };
+  delivery: { city: string; price: number; days: string };
+}) {
   const router = useRouter();
   const [contact, setContact] = useState({ ...defaults, phone: defaults.phone || "+998 " });
   const [address, setAddress] = useState("");
@@ -98,11 +106,11 @@ export function CheckoutForm({ items, defaults }: { items: CartLine[]; defaults:
         {needsShipping ? (
           <div className="card stack">
             <div className="spread">
-              <h3 style={{ margin: 0 }}>Доставка по Ташкенту</h3>
-              <span>{money(DELIVERY.price)}</span>
+              <h3 style={{ margin: 0 }}>Доставка, г. {delivery.city}</h3>
+              <span>{money(delivery.price)}</span>
             </div>
             <p className="muted small" style={{ margin: 0 }}>
-              Курьер привезёт заказ через {DELIVERY.days}. Сейчас доставляем только по Ташкенту.
+              Курьер привезёт заказ{delivery.days && ` через ${delivery.days}`}. Сейчас доставляем только по г. {delivery.city}.
             </p>
             <label className="field">
               <span>Адрес: район, улица, дом, квартира</span>

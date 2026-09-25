@@ -1,17 +1,17 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CERTIFICATE_NOMINALS, money } from "@/lib/catalog";
+import { money } from "@/lib/catalog";
 
-export function CertificateBuy() {
+export function CertificateBuy({ nominals }: { nominals: number[] }) {
   const router = useRouter();
-  const [amount, setAmount] = useState(CERTIFICATE_NOMINALS[1]);
+  const [amount, setAmount] = useState(nominals[Math.min(1, nominals.length - 1)]);
   const [busy, setBusy] = useState(false);
   return (
     <div className="card stack" style={{ marginTop: 24 }}>
       <div className="muted small">Номинал</div>
       <div className="choices">
-        {CERTIFICATE_NOMINALS.map((n) => (
+        {nominals.map((n) => (
           <button key={n} type="button" className="choice" aria-pressed={amount === n} onClick={() => setAmount(n)}>
             {money(n)}
           </button>

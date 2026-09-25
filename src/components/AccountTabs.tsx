@@ -14,6 +14,9 @@ export function AccountTabs() {
         <Link href="/account/projects" className={path === "/account/projects" ? "active" : ""}>
           Проекты
         </Link>
+        <Link href="/account/password" className={path === "/account/password" ? "active" : ""}>
+          Пароль
+        </Link>
       </div>
       <button
         className="link-btn small"

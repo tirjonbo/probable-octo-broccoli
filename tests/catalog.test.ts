@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getProduct, money, normalizeConfig, normalizePhone, priceFor } from "../src/lib/catalog.ts";
+import { DEFAULT_PRODUCTS, money, normalizeConfig, normalizePhone, priceFor } from "../src/lib/catalog.ts";
 
-const book = getProduct("photobook")!;
+const book = DEFAULT_PRODUCTS.find((p) => p.slug === "photobook")!;
 
 test("базовая цена фотокниги — формат без доплат", () => {
   assert.equal(priceFor(book, normalizeConfig(book, {})), 290_000);

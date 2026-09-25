@@ -13,5 +13,5 @@ export async function POST(req: Request) {
       certificate: str(b.certificate) || undefined,
     });
     return ok(totals);
-  });
+  }, req);
 }

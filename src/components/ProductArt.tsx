@@ -1,10 +1,17 @@
-import type { Product } from "@/lib/catalog";
+import type { ProductKind } from "@/lib/catalog";
+
+type Art = { kind: ProductKind | "certificate"; color: string; image?: string | null };
 
 const svgStyle = { maxWidth: "100%", height: "auto" };
 
 /** Иллюстрация продукта на SVG — без внешних картинок. */
-export function ProductArt({ product, size = 220 }: { product: Pick<Product, "kind" | "color">; size?: number }) {
+export function ProductArt({ product, size = 220 }: { product: Art; size?: number }) {
   const c = product.color;
+  if (product.image)
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={`/api/media/${product.image}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    );
   const w = size;
   const h = size * 0.75;
   if (product.kind === "calendar")

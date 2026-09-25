@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { DELIVERY, money } from "@/lib/catalog";
+import { money } from "@/lib/catalog";
 import type { CartLine } from "@/lib/shop";
 
-export function CartView({ initial }: { initial: CartLine[] }) {
+export function CartView({ initial, delivery }: { initial: CartLine[]; delivery: { city: string; price: number } }) {
   const [items, setItems] = useState(initial);
   const router = useRouter();
 
@@ -68,13 +68,13 @@ export function CartView({ initial }: { initial: CartLine[] }) {
         </div>
         {goods > 0 && (
           <div className="summary-row">
-            <span>Доставка по Ташкенту</span>
-            <span>{money(DELIVERY.price)}</span>
+            <span>Доставка, {delivery.city}</span>
+            <span>{money(delivery.price)}</span>
           </div>
         )}
         <div className="summary-row summary-total">
           <span>Итого</span>
-          <span>{money(subtotal + (goods > 0 ? DELIVERY.price : 0))}</span>
+          <span>{money(subtotal + (goods > 0 ? delivery.price : 0))}</span>
         </div>
         <Link href="/checkout" className="btn btn-block" style={{ marginTop: 12 }}>
           Оформить заказ

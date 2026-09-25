@@ -1,21 +1,19 @@
-import { getUser } from "@/lib/auth";
-import { ORDER_STATUSES, type OrderStatus } from "@/lib/catalog";
-import { body, fail, handle, ok, str } from "@/lib/http";
-import { markPaid, setOrderStatus } from "@/lib/shop";
+import { type OrderEdit, deleteOrder, updateOrder } from "@/lib/admin-store";
+import { adminHandle, authorName, body, ok } from "@/lib/http";
 
-/** Менеджер меняет статус заказа и/или отмечает получение оплаты. */
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return handle(async () => {
-    const user = await getUser();
-    if (user?.role !== "admin") return fail("Нет доступа", 403);
-    const { id } = await params;
-    const b = await body(req);
-    if (b.status !== undefined) {
-      const status = str(b.status);
-      if (!(status in ORDER_STATUSES)) return fail("Неизвестный статус");
-      setOrderStatus(id, status as OrderStatus);
-    }
-    if (b.paid === true) markPaid(id);
+type Ctx = { params: Promise<{ id: string }> };
+
+/** Менеджер редактирует заказ: статус, оплата, контакты, адрес, позиции, скидка, доставка, заметка. */
+export async function PATCH(req: Request, { params }: Ctx) {
+  return adminHandle(req, async (admin) => {
+    const order = updateOrder((await params).id, await body<OrderEdit>(req), authorName(admin));
+    return ok({ order });
+  });
+}
+
+export async function DELETE(req: Request, { params }: Ctx) {
+  return adminHandle(req, async () => {
+    deleteOrder((await params).id);
     return ok({ ok: true });
   });
 }

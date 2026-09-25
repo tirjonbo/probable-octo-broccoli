@@ -11,7 +11,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const b = await body(req);
     setCartQty(user.id, (await params).id, Number(b.qty));
     return ok({ items: getCart(user.id) });
-  });
+  }, req);
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
@@ -20,5 +20,5 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!user) return fail("Нет корзины", 404);
     removeCartItem(user.id, (await params).id);
     return ok({ items: getCart(user.id) });
-  });
+  }, _req);
 }

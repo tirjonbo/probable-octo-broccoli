@@ -1,5 +1,6 @@
 import { getUser } from "@/lib/auth";
-import { getProduct, normalizeConfig } from "@/lib/catalog";
+import { normalizeConfig } from "@/lib/catalog";
+import { getProduct } from "@/lib/content-store";
 import { db } from "@/lib/db";
 import { body, fail, handle, ok, str } from "@/lib/http";
 import { isProjectData, resizePages } from "@/lib/project";
@@ -33,7 +34,7 @@ export async function PUT(req: Request, { params }: Ctx) {
       .prepare("UPDATE projects SET title = ?, config = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
       .run(title, JSON.stringify(config), JSON.stringify(data), project.id);
     return ok({ ...project, title, config, data });
-  });
+  }, req);
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
@@ -42,5 +43,5 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!user) return fail("Не найдено", 404);
     db().prepare("DELETE FROM projects WHERE id = ? AND user_id = ?").run((await params).id, user.id);
     return ok({ ok: true });
-  });
+  }, _req);
 }

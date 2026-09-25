@@ -158,3 +158,59 @@ table.table th { color: var(--muted); font-weight: 500; }
 
 .summary-row > :last-child, .btn { white-space: nowrap; }
 .summary-row > :first-child { padding-right: 12px; }
+
+/* Баннеры на главной */
+.banner { border-radius: var(--radius); display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; min-height: 180px; overflow: hidden; }
+.banner-text { padding: 32px 40px; }
+.banner-img { height: 100%; max-height: 260px; width: 100%; max-width: 420px; object-fit: cover; }
+.banner-dots { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+.banner-dots button { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: var(--line); cursor: pointer; }
+.banner-dots button[aria-selected="true"] { background: var(--ink); width: 24px; border-radius: 4px; }
+@media (max-width: 700px) {
+  .banner { grid-template-columns: 1fr; }
+  .banner-text { padding: 24px; }
+  .banner-img { max-width: none; max-height: 200px; }
+}
+.hero-art { display: grid; place-items: center; padding: 40px; overflow: hidden; aspect-ratio: 4/3; }
+.hero-art img { border-radius: 8px; }
+.product-card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- Админка ---------- */
+body:has(.admin-shell) .footer { display: none; }
+.admin-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100dvh; }
+.admin-nav { background: var(--surface); border-right: 1px solid var(--line); padding: 20px 14px; position: sticky; top: 0; height: 100dvh; overflow-y: auto; }
+.admin-nav nav { display: flex; flex-direction: column; gap: 2px; margin-top: 20px; }
+.admin-nav nav a { text-decoration: none; padding: 9px 12px; border-radius: 8px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.admin-nav nav a:hover { background: var(--soft); color: var(--ink); }
+.admin-nav nav a.active { background: var(--ink); color: var(--bg); }
+.admin-nav hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 12px 0; }
+.admin-burger { display: none; }
+.badge-inline { background: var(--accent); color: #fff; border-radius: 9px; font-size: 11px; padding: 1px 7px; }
+.admin-main { padding: 28px 32px 64px; min-width: 0; }
+.admin-main h1 { font-size: 2rem; }
+.admin-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.admin-head h1 { margin: 0; }
+.admin-savebar { position: sticky; bottom: 0; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(6px); padding: 14px 0; margin-top: 20px; display: flex; gap: 14px; align-items: center; border-top: 1px solid var(--line); z-index: 5; flex-wrap: wrap; }
+.admin-toggle { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.admin-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+.admin-noimage { width: 120px; height: 80px; border-radius: 8px; border: 1px dashed var(--line); display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.admin-grid-form { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.admin-list-row { display: grid; gap: 10px; align-items: end; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.admin-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.admin-filters input[type=search] { max-width: 320px; }
+.admin-main table.table td input, .admin-main table.table td select { padding: 6px 8px; font-size: 14px; }
+.stat-big { font-family: var(--serif); font-size: 1.9rem; }
+.chart-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; margin-top: 12px; }
+.chart-bars div { flex: 1; background: color-mix(in srgb, var(--accent) 70%, #fff); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+.timeline { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+.timeline li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 900px) {
+  .admin-shell { grid-template-columns: 1fr; }
+  .admin-nav { position: sticky; height: auto; z-index: 20; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .admin-nav nav { display: none; }
+  .admin-nav.open nav { display: flex; }
+  .admin-burger { display: block; }
+  .admin-main { padding: 20px 16px 64px; }
+}
+@media (max-width: 1000px) { .admin-main form > .grid { grid-template-columns: 1fr !important; } }
+@media (max-width: 700px) { .admin-list-row { grid-template-columns: 1fr 1fr !important; } }

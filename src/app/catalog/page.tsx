@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { ProductArt } from "@/components/ProductArt";
-import { PRODUCTS, minPrice, money } from "@/lib/catalog";
+import { minPrice, money } from "@/lib/catalog";
+import { getSettings, listProducts } from "@/lib/content-store";
 
 export const metadata = { title: "Каталог" };
 
 export default function Catalog() {
+  const products = listProducts(true);
+  const nominals = getSettings().certificates.nominals;
   return (
     <div className="container section">
       <h1>Каталог</h1>
@@ -12,14 +15,14 @@ export default function Catalog() {
         Все продукты собираются в одном редакторе. Выберите основу — параметры можно поменять и после загрузки фото.
       </p>
       <div className="grid grid-2" style={{ marginTop: 32 }}>
-        {PRODUCTS.map((p) => (
+        {products.map((p) => (
           <Link key={p.slug} href={`/catalog/${p.slug}`} className="card product-card catalog-card" style={{ flexDirection: "row", alignItems: "center" }}>
             <div className="thumb" style={{ background: p.color + "55", width: 200, flex: "none" }}>
               <ProductArt product={p} size={180} />
             </div>
             <div>
               <h3>{p.title}</h3>
-              <p className="muted small">{p.description}</p>
+              <p className="muted small">{p.short || p.description}</p>
               <strong>от {money(minPrice(p))}</strong>
             </div>
           </Link>
@@ -31,7 +34,7 @@ export default function Catalog() {
           <div>
             <h3>Подарочный сертификат</h3>
             <p className="muted small">Когда хочется подарить книгу, но фото у получателя.</p>
-            <strong>от {money(2000)}</strong>
+            <strong>от {money(Math.min(...nominals))}</strong>
           </div>
         </Link>
       </div>

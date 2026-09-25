@@ -17,5 +17,5 @@ export async function POST(req: Request) {
       certificate: str(b.certificate, 40),
     });
     return ok({ id: order.id, status: order.status });
-  });
+  }, req);
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { type ProjectConfig, type Product, defaultConfig, getProduct, priceFor, money } from "@/lib/catalog";
+import { type ProjectConfig, type Product, defaultConfig, priceFor, money } from "@/lib/catalog";
 
 export function ConfigFields({
   product,
@@ -77,8 +77,8 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function Configurator({ slug }: { slug: string }) {
-  const product = getProduct(slug)!;
+export function Configurator({ product }: { product: Product }) {
+  const slug = product.slug;
   const router = useRouter();
   const [config, setConfig] = useState(() => defaultConfig(product));
   const [title, setTitle] = useState("");
